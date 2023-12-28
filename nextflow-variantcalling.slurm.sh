@@ -8,9 +8,6 @@
 
 set -e
 
-
-# module load singularity
-
 get_latest_release() {
   curl --silent "https://api.github.com/repos/$1/releases/latest" |
     grep '"tag_name":' |
@@ -35,6 +32,14 @@ if [[ "$1" == "release" ]] ;
     KALLISTO_RELEASE=$(get_latest_release ${ORIGIN}nf-kallisto)
     echo "${ORIGIN}nf-kallisto:${KALLISTO_RELEASE}" >> ${LOGS}/software.txt
     KALLISTO_RELEASE="-r ${KALLISTO_RELEASE}"
+
+    BWA_RELEASE=$(get_latest_release ${ORIGIN}nf-bwa)
+    echo "${ORIGIN}nf-bwa:${BWA_RELEASE}" >> ${LOGS}/software.txt
+    BWA_RELEASE="-r ${BWA_RELEASE}"
+
+    DEEPVARIANT_RELEASE=$(get_latest_release ${ORIGIN}nf-deepvariant)
+    echo "${ORIGIN}nf-deepvariant:${DEEPVARIANT_RELEASE}" >> ${LOGS}/software.txt
+    DEEPVARIANT_RELEASE="-r ${DEEPVARIANT_RELEASE}"
     
     FEATURECOUNTS_RELEASE=$(get_latest_release ${ORIGIN}nf-featurecounts)
     echo "${ORIGIN}nf-featurecounts:${FEATURECOUNTS_RELEASE}" >> ${LOGS}/software.txt
@@ -43,15 +48,17 @@ if [[ "$1" == "release" ]] ;
     MULTIQC_RELEASE=$(get_latest_release ${ORIGIN}nf-multiqc)
     echo "${ORIGIN}nf-multiqc:${MULTIQC_RELEASE}" >> ${LOGS}/software.txt
     MULTIQC_RELEASE="-r ${MULTIQC_RELEASE}"
-    
 
+    VEP_RELEASE=$(get_latest_release ${ORIGIN}nf-vep)
+    echo "${ORIGIN}nf-vep:${VEP_RELEASE}" >> ${LOGS}/software.txt
+    VEP_RELEASE="-r ${VEP_RELEASE}"
     
     uniq ${LOGS}/software.txt ${LOGS}/software.txt_
     mv ${LOGS}/software.txt_ ${LOGS}/software.txt
     
 else
 
-  for repo in nf-fastqc nf-kallisto nf-featurecounts nf-multiqc  ; 
+  for repo in nf-fastqc nf-kallisto nf-bwa nf-deepvariant nf-featurecounts nf-multiqc nf-vep ; 
     do
 
       if [[ ! -e ${repo} ]] ;
@@ -85,9 +92,11 @@ get_images() {
   echo "- downloading images"
   nextflow run ${ORIGIN}nf-fastqc ${FASTQC_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
   nextflow run ${ORIGIN}nf-kallisto ${KALLISTO_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-deepvariant -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \ #### ${DEEPVARIANT_RELEASE}
+  nextflow run ${ORIGIN}nf-bwa ${BWA_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
   nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-multiqc ${MULTIQC_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 
+  nextflow run ${ORIGIN}nf-multiqc ${MULTIQC_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1 && \
+  nextflow RUN ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry images -profile ${PROFILE} >> ${LOGS}/get_images.log 2>&1
 }
 
 run_fastqc() {
@@ -103,19 +112,35 @@ run_kallisto_get_genome() {
 
 run_bwa() {
   echo "- mapping raw data"
-  nextflow run ${ORIGIN}nf-bwa -params-file ${PARAMS} -entry index -profile ${PROFILE} >> ${LOGS}/bwa.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-bwa -params-file ${PARAMS} -entry map_reads -profile ${PROFILE} >> ${LOGS}/bwa.log 2>&1
+  nextflow run ${ORIGIN}nf-bwa ${BWA_RELEASE} -params-file ${PARAMS} -entry index -profile ${PROFILE} >> ${LOGS}/bwa.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-bwa ${BWA_RELEASE} -params-file ${PARAMS} -entry map_reads -profile ${PROFILE} >> ${LOGS}/bwa.log 2>&1
 }
 
 run_deepVariant() {
   echo "- calling varinats"
-  nextflow run ${ORIGIN}nf-deepvariant -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
 }
 
 run_featureCounts() {
   echo "- feature counts"
-  nextflow run ${ORIGIN}nf-featurecounts -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1
+  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry exomeGTF -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1 \
+  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry featurecounts_general -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1
 }
+
+run_multiqc() {
+  echo "- multiqc"
+  nextflow run ${ORIGIN}nf-multiqc ${MULTIQC_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-multiqc ${MULTIQC_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1
+}
+
+run_vep() {
+  echo "- annotating variants"
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry get_cache -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1
+  # nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 
+}
+
+
 
 
 
