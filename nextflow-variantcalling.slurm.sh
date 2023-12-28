@@ -140,15 +140,31 @@ run_vep() {
   # nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 
 }
 
-
-
-
-
-
-run_featureCounts & RUN_featureCounts_PID=$!
+get_images && sleep 1
+run_fastqc & RUN_fastqc_PID=$!
 sleep 1
 
-for PID in $RUN_featureCounts_PID ; 
+run_kallisto_get_genome & RUN_kallisto_PID=$!
+sleep 1
+
+run_bwa & RUN_bwa_PID=$!
+sleep 1
+
+for PID in $RUN_fastqc_PID $RUN_kallisto_PID $RUN_bwa_PID ; 
+    do
+        wait $PID
+        CODE=$?
+        if [[ "$CODE" != "0" ]] ; 
+            then
+                echo "exit $CODE"
+                exit $CODE
+        fi   
+done
+
+run_deepVariant & RUN_deepvariant_PID=$!
+sleep 1
+
+for PID in $RUN_deepvariant_PID ; 
     do
         wait $PID
         CODE=$?
@@ -159,62 +175,22 @@ for PID in $RUN_featureCounts_PID ;
         fi
 done
 
-exit
+run_featureCounts & RUN_featureCounts_PID=$!
+sleep 1
 
-# get_images && sleep 1
-# run_fastqc & RUN_fastqc_PID=$!
-# sleep 1
+run_vep & RUN_vep_PID=$!
+sleep 1
 
-# run_kallisto_get_genome & RUN_kallisto_PID=$!
-# sleep 1
-
-# run_bwa & RUN_bwa_PID=$!
-# sleep 1
-
-# for PID in $RUN_fastqc_PID $RUN_kallisto_PID $RUN_bwa_PID ; 
-#     do
-#         wait $PID
-#         CODE=$?
-#         if [[ "$CODE" != "0" ]] ; 
-#             then
-#                 echo "exit $CODE"
-#                 exit $CODE
-#         fi   
-# done
-
-# run_deepVariant & RUN_deepvariant_PID=$!
-# sleep 1
-
-# for PID in $RUN_deepvariant_PID ; 
-#     do
-#         wait $PID
-#         CODE=$?
-#         if [[ "$CODE" != "0" ]] ; 
-#             then
-#                 echo "exit $CODE"
-#                 exit $CODE
-#         fi
-# done
-
-# run_snpeff() {
-#   echo "- annotating varinats"
-#   nextflow run ${ORIGIN}nf-snpeff -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/snpeff.log 2>&1
-# }
-
-# run_snpeff & RUN_snpeff_PID=$!
-# sleep 1
-
-# for PID in $RUN_snpeff_PID ; 
-#     do
-#         wait $PID
-#         CODE=$?
-#         if [[ "$CODE" != "0" ]] ; 
-#             then
-#                 echo "exit $CODE"
-#                 exit $CODE
-#         fi
-# done
-
+for PID in $RUN_featureCounts_PID $RUN_vep_PID ; 
+    do
+        wait $PID
+        CODE=$?
+        if [[ "$CODE" != "0" ]] ; 
+            then
+                echo "exit $CODE"
+                exit $CODE
+        fi
+done
 
 
 exit
