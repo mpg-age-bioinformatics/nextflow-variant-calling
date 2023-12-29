@@ -123,8 +123,8 @@ run_deepVariant() {
 
 run_featureCounts() {
   echo "- feature counts"
-  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry exomeGTF -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1 \
-  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry featurecounts_general -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1
+  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -entry exomeGTF -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-featurecounts ${FEATURECOUNTS_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/featureCounts.log 2>&1
 }
 
 run_multiqc() {
@@ -135,9 +135,9 @@ run_multiqc() {
 
 run_vep() {
   echo "- annotating variants"
-  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry get_cache -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1
-  # nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/multiqc.log 2>&1 
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry cache -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1
+  # nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 
 }
 
 get_images && sleep 1
@@ -178,10 +178,24 @@ done
 run_featureCounts & RUN_featureCounts_PID=$!
 sleep 1
 
+for PID in $RUN_featureCounts_PID ; 
+    do
+        wait $PID
+        CODE=$?
+        if [[ "$CODE" != "0" ]] ; 
+            then
+                echo "exit $CODE"
+                exit $CODE
+        fi
+done
+
 run_vep & RUN_vep_PID=$!
 sleep 1
 
-for PID in $RUN_featureCounts_PID $RUN_vep_PID ; 
+run_multiqc & RUN_multiqc_PID=$!
+sleep 1
+
+for PID in $RUN_multiqc_PID $RUN_vep_PID ; 
     do
         wait $PID
         CODE=$?
