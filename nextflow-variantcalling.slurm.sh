@@ -136,8 +136,8 @@ run_multiqc() {
 run_vep() {
   echo "- annotating variants"
   nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry cache -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1
-  # nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 
 }
 
 get_images && sleep 1
@@ -206,5 +206,16 @@ for PID in $RUN_multiqc_PID $RUN_vep_PID ;
         fi
 done
 
+
+rm -rf ${project_folder}/upload.txt
+cat $(find ${project_folder}/ -name upload.txt) > ${project_folder}/upload.txt
+sort -u ${LOGS}/software.txt > ${LOGS}/software.txt_
+mv ${LOGS}/software.txt_ ${LOGS}/software.txt
+cp ${LOGS}/software.txt ${project_folder}/software.txt
+cp Material_and_Methods.md ${project_folder}/Material_and_Methods.md
+echo "main $(readlink -f ${project_folder}/software.txt)" >> ${project_folder}/upload.txt
+echo "main $(readlink -f ${project_folder}/Material_and_Methods.md)" >> ${project_folder}/upload.txt
+cp ${project_folder}/upload.txt ${upload_list}
+echo "- done" && sleep 1
 
 exit
