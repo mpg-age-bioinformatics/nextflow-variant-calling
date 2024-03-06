@@ -162,22 +162,22 @@ run_vep() {
 }
 
 get_images & IMAGES_PID=$!
-wait for "${IMAGES_PID}:IMAGES"
+wait_for "${IMAGES_PID}:IMAGES"
 
 run_fastqc & FASTQC_PID=$!
 run_kallisto_get_genome & KALLISTO_PID=$!
 
-wait for "${KALLISTO_PID}:KALLISTO"
+wait_for "${KALLISTO_PID}:KALLISTO"
 
 run_bwa & BWA_PID=$!
-wait for "${BWA_PID}:BWA"
+wait_for "${BWA_PID}:BWA"
 
 run_deepVariant & DEEPVARIANT_PID=$!
-wait for "${DEEPVARIANT_PID}:DEEPVARIANT"
+wait_for "${DEEPVARIANT_PID}:DEEPVARIANT"
 
 
 run_featureCounts & FEATURECOUNTS_PID=$!
-wait for "${FEATURECOUNTS_PID}:FEATURECOUNTS"
+wait_for "${FEATURECOUNTS_PID}:FEATURECOUNTS"
 
 run_multiqc & MULTIQC_PID=$!
 sleep 1
