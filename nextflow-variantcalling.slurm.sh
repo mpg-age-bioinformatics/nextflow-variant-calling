@@ -14,6 +14,24 @@ get_latest_release() {
     sed -E 's/.*"([^"]+)".*/\1/'
 }
 
+wait_for(){
+    PID=$(echo "$1" | cut -d ":" -f 1 )
+    PRO=$(echo "$1" | cut -d ":" -f 2 )
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): waiting for ${PRO}"
+    wait $PID
+    CODE=$?
+    
+    if [[ "$CODE" != "0" ]] ; 
+        then
+            echo "$PRO failed"
+            echo "$CODE"
+            failed=true
+            #exit $CODE
+    fi
+}
+
+failed=false
+
 PROFILE=$2
 LOGS="work"
 PARAMS="params.json"
@@ -118,7 +136,10 @@ run_bwa() {
 
 run_deepVariant() {
   echo "- calling varinats"
-  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_ucsc_to_ensembl -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_deepVariant -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_filtering -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_subtractWT -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
 }
 
 run_featureCounts() {
@@ -140,70 +161,33 @@ run_vep() {
   nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 
 }
 
-get_images && sleep 1
-run_fastqc & RUN_fastqc_PID=$!
+get_images & IMAGES_PID=$!
+wait for "${IMAGES_PID}:IMAGES"
+
+run_fastqc & FASTQC_PID=$!
+run_kallisto_get_genome & KALLISTO_PID=$!
+
+wait for "${KALLISTO_PID}:KALLISTO"
+
+run_bwa & BWA_PID=$!
+wait for "${BWA_PID}:BWA"
+
+run_deepVariant & DEEPVARIANT_PID=$!
+wait for "${DEEPVARIANT_PID}:DEEPVARIANT"
+
+
+run_featureCounts & FEATURECOUNTS_PID=$!
+wait for "${FEATURECOUNTS_PID}:FEATURECOUNTS"
+
+run_multiqc & MULTIQC_PID=$!
 sleep 1
 
-run_kallisto_get_genome & RUN_kallisto_PID=$!
+run_vep & VEP_PID=$!
 sleep 1
 
-run_bwa & RUN_bwa_PID=$!
-sleep 1
-
-for PID in $RUN_fastqc_PID $RUN_kallisto_PID $RUN_bwa_PID ; 
-    do
-        wait $PID
-        CODE=$?
-        if [[ "$CODE" != "0" ]] ; 
-            then
-                echo "exit $CODE"
-                exit $CODE
-        fi   
-done
-
-run_deepVariant & RUN_deepvariant_PID=$!
-sleep 1
-
-for PID in $RUN_deepvariant_PID ; 
-    do
-        wait $PID
-        CODE=$?
-        if [[ "$CODE" != "0" ]] ; 
-            then
-                echo "exit $CODE"
-                exit $CODE
-        fi
-done
-
-run_featureCounts & RUN_featureCounts_PID=$!
-sleep 1
-
-for PID in $RUN_featureCounts_PID ; 
-    do
-        wait $PID
-        CODE=$?
-        if [[ "$CODE" != "0" ]] ; 
-            then
-                echo "exit $CODE"
-                exit $CODE
-        fi
-done
-
-run_vep & RUN_vep_PID=$!
-sleep 1
-
-run_multiqc & RUN_multiqc_PID=$!
-sleep 1
-
-for PID in $RUN_multiqc_PID $RUN_vep_PID ; 
-    do
-        wait $PID
-        CODE=$?
-        if [[ "$CODE" != "0" ]] ; 
-            then
-                echo "exit $CODE"
-                exit $CODE
-        fi
+for PID in "${MULTIQC_PID}:MULTIQC" "${VEP_PID}:VEP"
+  do
+    wait_for $PID
 done
 
 
@@ -212,9 +196,9 @@ cat $(find ${project_folder}/ -name upload.txt) > ${project_folder}/upload.txt
 sort -u ${LOGS}/software.txt > ${LOGS}/software.txt_
 mv ${LOGS}/software.txt_ ${LOGS}/software.txt
 cp ${LOGS}/software.txt ${project_folder}/software.txt
-cp Material_and_Methods.md ${project_folder}/Material_and_Methods.md
+cp README_variantCalling.md ${project_folder}/README_variantCalling.md
 echo "main $(readlink -f ${project_folder}/software.txt)" >> ${project_folder}/upload.txt
-echo "main $(readlink -f ${project_folder}/Material_and_Methods.md)" >> ${project_folder}/upload.txt
+echo "main $(readlink -f ${project_folder}/README_variantCalling.md)" >> ${project_folder}/upload.txt
 cp ${project_folder}/upload.txt ${upload_list}
 echo "- done" && sleep 1
 
