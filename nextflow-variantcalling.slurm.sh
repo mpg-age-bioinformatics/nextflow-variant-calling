@@ -139,7 +139,8 @@ run_deepVariant() {
   nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_ucsc_to_ensembl -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
   nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_deepVariant -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
   nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_filtering -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_subtractWT -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry run_subtractWT -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-deepvariant ${DEEPVARIANT_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/deepVariant.log 2>&1
 }
 
 run_featureCounts() {
@@ -175,21 +176,19 @@ wait_for "${BWA_PID}:BWA"
 run_deepVariant & DEEPVARIANT_PID=$!
 wait_for "${DEEPVARIANT_PID}:DEEPVARIANT"
 
+run_vep & VEP_PID=$!
+sleep 1
 
 run_featureCounts & FEATURECOUNTS_PID=$!
 wait_for "${FEATURECOUNTS_PID}:FEATURECOUNTS"
 
 run_multiqc & MULTIQC_PID=$!
-sleep 1
+wait_for "${MULTIQC_PID}:MULTIQC"
 
-run_vep & VEP_PID=$!
-sleep 1
-
-for PID in "${MULTIQC_PID}:MULTIQC" "${VEP_PID}:VEP"
-  do
-    wait_for $PID
-done
-
+# for PID in "${MULTIQC_PID}:MULTIQC" "${VEP_PID}:VEP"
+#   do
+#     wait_for $PID
+# done
 
 rm -rf ${project_folder}/upload.txt
 cat $(find ${project_folder}/ -name upload.txt) > ${project_folder}/upload.txt
