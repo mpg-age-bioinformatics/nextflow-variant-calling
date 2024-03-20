@@ -158,7 +158,8 @@ run_multiqc() {
 run_vep() {
   echo "- annotating variants"
   nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry cache -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
-  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry annotate -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
+  nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry merge -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 && \
   nextflow run ${ORIGIN}nf-vep ${VEP_RELEASE} -params-file ${PARAMS} -entry upload -profile ${PROFILE} >> ${LOGS}/vep.log 2>&1 
 }
 
@@ -176,19 +177,19 @@ wait_for "${BWA_PID}:BWA"
 run_deepVariant & DEEPVARIANT_PID=$!
 wait_for "${DEEPVARIANT_PID}:DEEPVARIANT"
 
-run_vep & VEP_PID=$!
-sleep 1
-
 run_featureCounts & FEATURECOUNTS_PID=$!
 wait_for "${FEATURECOUNTS_PID}:FEATURECOUNTS"
 
-run_multiqc & MULTIQC_PID=$!
-wait_for "${MULTIQC_PID}:MULTIQC"
+run_vep & VEP_PID=$!
+sleep 1
 
-# for PID in "${MULTIQC_PID}:MULTIQC" "${VEP_PID}:VEP"
-#   do
-#     wait_for $PID
-# done
+run_multiqc & MULTIQC_PID=$!
+sleep 1
+
+for PID in "${MULTIQC_PID}:MULTIQC" "${VEP_PID}:VEP"
+  do
+    wait_for $PID
+done
 
 rm -rf ${project_folder}/upload.txt
 cat $(find ${project_folder}/ -name upload.txt) > ${project_folder}/upload.txt
